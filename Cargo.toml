@@ -11,6 +11,9 @@ anyhow = "1.0.77"
 reqwest = { version = "0.11.23", features = ["blocking", "json"] }
 rfd = "0.12.1"
 serde = { version = "1.0.193", features = ["derive"] }
+sevenz-rust = "0.5.4"
+tempfile = "3.9.0"
+unrar = "0.5.2"
 url = "2.5.0"
 winreg = "0.52.0"
 zip = "0.6.6"

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Write};
 
 #[derive(serde::Deserialize)]
 struct ModFile {
@@ -37,22 +37,69 @@ fn main() -> anyhow::Result<()> {
         let resp: Vec<HashMap<String, ModFile>> = reqwest::blocking::get(url)?.json()?;
         for (file_id, file) in resp[0].iter() {
             let ext = file.file.split('.').last();
-            if ext.is_none() || (ext.unwrap() != "zip" && ext.unwrap() != "cbb") {
+            let allowed_exts = ["zip", "cbb", "rar", "7z"];
+            if ext.is_none() || !allowed_exts.contains(&ext.unwrap()) {
                 continue;
             }
 
             let data = reqwest::blocking::get(&file.download_url)?.bytes()?;
-            if ext.unwrap() == "zip" {
-                let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data))?;
-                for i in 0..archive.len() {
-                    let mut file = archive.by_index(i)?;
-                    if file.name().ends_with(".cbb") {
-                        let mut data = Vec::new();
-                        file.read_to_end(&mut data)?;
-                        let path = std::path::Path::new(&game_path).join(file.name());
-                        std::fs::write(path, data)?;
+            match ext.unwrap() {
+                "zip" => {
+                    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data))?;
+                    for i in 0..archive.len() {
+                        let mut file = archive.by_index(i)?;
+                        if file.name().ends_with(".cbb") {
+                            let mut data = Vec::new();
+                            file.read_to_end(&mut data)?;
+                            let path = std::path::Path::new(&game_path).join(file.name());
+                            std::fs::write(path, data)?;
+                        }
                     }
                 }
+
+                "cbb" => {
+                    let path = std::path::Path::new(&game_path).join(file.file.clone());
+                    std::fs::write(path, data)?;
+                }
+
+                "rar" => {
+                    // this api sucks lol
+                    let mut temp_file = tempfile::NamedTempFile::new()?;
+                    temp_file.write_all(&data)?;
+
+                    let mut archive =
+                        unrar::Archive::new(temp_file.path()).open_for_processing()?;
+                    while let Some(header) = archive.read_header()? {
+                        let filename = header
+                            .entry()
+                            .filename
+                            .file_name()
+                            .unwrap()
+                            .to_string_lossy();
+                        archive = if filename.ends_with(".cbb") {
+                            let path = std::path::Path::new(&game_path).join(filename.to_string());
+                            header.extract_to(path)?
+                        } else {
+                            header.skip()?
+                        };
+                    }
+                    std::fs::remove_file(temp_file.path())?;
+                }
+
+                "7z" => {
+                    let size = data.len();
+                    let mut reader = std::io::Cursor::new(data.clone());
+                    let archive = sevenz_rust::Archive::read(&mut reader, size as u64, &[])?;
+
+                    for file in archive.files {
+                        if file.name().ends_with(".cbb") {
+                            let path = std::path::Path::new(&game_path).join(file.name());
+                            sevenz_rust::default_entry_extract_fn(&file, &mut reader, &path)?;
+                        }
+                    }
+                }
+
+                _ => {}
             }
         }
 

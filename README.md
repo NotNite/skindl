@@ -18,9 +18,9 @@ I don't like Concursus. Also, I need a small programming project to get used to 
 - [x] Registering the URI handler
 - [x] Downloading mods
   - [x] zip
-  - [ ] cbb
-  - [ ] 7z
-  - [ ] rar
+  - [x] cbb
+  - [x] 7z
+  - [x] rar
 - [ ] Better error handling & idiot proofing
   - [ ] Show errors instead of insta closing
   - [ ] Ensure selected folder is valid on select
