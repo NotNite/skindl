@@ -85,6 +85,14 @@ fn download_file(
     Ok(bytes)
 }
 
+fn path_to_filename(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .to_string()
+}
+
 fn download_mod(
     tx: &std::sync::mpsc::Sender<DownloadEvent>,
     id: String,
@@ -123,10 +131,13 @@ fn download_mod(
                 let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data))?;
                 for i in 0..archive.len() {
                     let mut file = archive.by_index(i)?;
-                    if file.name().ends_with(".cbb") {
+                    let filename = file.name().to_string();
+                    if filename.ends_with(".cbb") {
                         let mut data = Vec::new();
                         file.read_to_end(&mut data)?;
-                        let path = std::path::Path::new(&crew_boom_path).join(file.name());
+
+                        let path =
+                            std::path::Path::new(&crew_boom_path).join(path_to_filename(&filename));
                         std::fs::write(path, data)?;
                     }
                 }
@@ -150,8 +161,10 @@ fn download_mod(
                         .file_name()
                         .unwrap()
                         .to_string_lossy();
+
                     archive = if filename.ends_with(".cbb") {
-                        let path = std::path::Path::new(&crew_boom_path).join(filename.to_string());
+                        let path =
+                            std::path::Path::new(&crew_boom_path).join(path_to_filename(&filename));
                         header.extract_to(path)?
                     } else {
                         header.skip()?
@@ -166,8 +179,10 @@ fn download_mod(
                 let archive = sevenz_rust::Archive::read(&mut reader, size as u64, &[])?;
 
                 for file in archive.files {
-                    if file.name().ends_with(".cbb") {
-                        let path = std::path::Path::new(&crew_boom_path).join(file.name());
+                    let filename = file.name().to_string();
+                    if filename.ends_with(".cbb") {
+                        let path =
+                            std::path::Path::new(&crew_boom_path).join(path_to_filename(&filename));
                         sevenz_rust::default_entry_extract_fn(&file, &mut reader, &path)?;
                     }
                 }
