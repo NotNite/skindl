@@ -1,10 +1,6 @@
+use anyhow::Context;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::str::Bytes;
-use std::sync::atomic::AtomicUsize;
-use std::sync::Arc;
-
-use anyhow::Context;
 
 #[derive(serde::Deserialize)]
 struct ModFile {
