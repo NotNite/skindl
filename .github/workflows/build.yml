@@ -14,4 +14,5 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v2
       with:
-        name: target/release/skindl.exe
+        name: skindl
+        path: target/release/skindl.exe

@@ -50,7 +50,7 @@ fn download_mod(arg: &str, crewboom_path_path: &std::path::Path) -> anyhow::Resu
         anyhow::bail!("CrewBoom path does not exist");
     }
 
-    let uri = url::Url::parse(&arg)?;
+    let uri = url::Url::parse(arg)?;
     let path = uri.domain().unwrap();
     let (game_id, mod_id) = path.split_once('_').unwrap();
 
