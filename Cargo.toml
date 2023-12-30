@@ -1,0 +1,16 @@
+[package]
+name = "skindl"
+description = "Bomb Rush Cyberfunk GameBanana downloader"
+authors = ["NotNite <hi@notnite.com>"]
+license = "MIT"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.77"
+reqwest = { version = "0.11.23", features = ["blocking", "json"] }
+rfd = "0.12.1"
+serde = { version = "1.0.193", features = ["derive"] }
+url = "2.5.0"
+winreg = "0.52.0"
+zip = "0.6.6"
