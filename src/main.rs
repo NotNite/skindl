@@ -25,10 +25,16 @@ enum DownloadEvent {
     Done,
 }
 
-#[derive(serde::Deserialize, serde::Serialize, Default)]
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone)]
+pub struct Config {
+    pub bepinex_path: Option<String>,
+    pub crewboom_no_cypher: bool,
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
 #[serde(default)]
 pub struct App {
-    bepinex_path: Option<String>,
+    config: Config,
 
     #[serde(skip)]
     mod_id: Option<String>,
@@ -96,8 +102,9 @@ fn path_to_filename(path: &str) -> String {
 fn download_mod(
     tx: &std::sync::mpsc::Sender<DownloadEvent>,
     id: String,
-    bepinex_path: String,
+    config: Config,
 ) -> anyhow::Result<()> {
+    let bepinex_path = config.bepinex_path.clone().unwrap();
     println!("Downloading mod {}", id);
 
     let url = format!(
@@ -108,11 +115,14 @@ fn download_mod(
     tx.send(DownloadEvent::ModName(resp.0.clone()))?;
     println!("Mod name: {}", resp.0);
 
-    let crew_boom_path = std::path::Path::new(&bepinex_path)
+    let mut crewboom_path = std::path::Path::new(&bepinex_path)
         .join("config")
         .join("CrewBoom");
-    if !crew_boom_path.exists() {
-        std::fs::create_dir_all(&crew_boom_path)?;
+    if config.crewboom_no_cypher {
+        crewboom_path = crewboom_path.join("no_cypher");
+    }
+    if !crewboom_path.exists() {
+        std::fs::create_dir_all(&crewboom_path)?;
     }
 
     for (file_id, file) in resp.1.iter() {
@@ -137,14 +147,14 @@ fn download_mod(
                         file.read_to_end(&mut data)?;
 
                         let path =
-                            std::path::Path::new(&crew_boom_path).join(path_to_filename(&filename));
+                            std::path::Path::new(&crewboom_path).join(path_to_filename(&filename));
                         std::fs::write(path, data)?;
                     }
                 }
             }
 
             "cbb" => {
-                let path = std::path::Path::new(&crew_boom_path).join(file.file.clone());
+                let path = std::path::Path::new(&crewboom_path).join(file.file.clone());
                 std::fs::write(path, data)?;
             }
 
@@ -164,7 +174,7 @@ fn download_mod(
 
                     archive = if filename.ends_with(".cbb") {
                         let path =
-                            std::path::Path::new(&crew_boom_path).join(path_to_filename(&filename));
+                            std::path::Path::new(&crewboom_path).join(path_to_filename(&filename));
                         header.extract_to(path)?
                     } else {
                         header.skip()?
@@ -182,7 +192,7 @@ fn download_mod(
                     let filename = file.name().to_string();
                     if filename.ends_with(".cbb") {
                         let path =
-                            std::path::Path::new(&crew_boom_path).join(path_to_filename(&filename));
+                            std::path::Path::new(&crewboom_path).join(path_to_filename(&filename));
                         sevenz_rust::default_entry_extract_fn(&file, &mut reader, &path)?;
                     }
                 }
@@ -204,15 +214,14 @@ impl App {
         };
 
         app.mod_id = mod_id;
-        if app.mod_id.is_some() && app.bepinex_path.is_some() {
+        if app.mod_id.is_some() && app.config.bepinex_path.is_some() {
             let (thread_tx, main_rx) = std::sync::mpsc::channel();
             app.main_rx = Some(main_rx);
-
             let mod_id = app.mod_id.clone().unwrap();
-            let bepinex_path = app.bepinex_path.clone().unwrap();
+            let config = app.config.clone();
 
             std::thread::spawn(move || {
-                let result = download_mod(&thread_tx, mod_id, bepinex_path);
+                let result = download_mod(&thread_tx, mod_id, config);
 
                 if let Err(err) = result {
                     thread_tx
@@ -223,11 +232,17 @@ impl App {
                 }
             });
         }
+
         app
     }
 }
 
-fn draw_folder_picker(folder_name: &str, path: &mut Option<String>, ui: &mut egui::Ui) -> bool {
+fn draw_folder_picker(
+    folder_name: &str,
+    path: &mut Option<String>,
+    is_valid: impl Fn(&str) -> bool,
+    ui: &mut egui::Ui,
+) -> bool {
     let mut changed = false;
 
     ui.horizontal_wrapped(|ui| {
@@ -240,14 +255,23 @@ fn draw_folder_picker(folder_name: &str, path: &mut Option<String>, ui: &mut egu
         }
 
         if ui.button("Change").clicked() {
-            let mut dialog = rfd::FileDialog::new();
-            if let Some(path) = path {
-                dialog = dialog.set_directory(path);
-            }
+            loop {
+                let mut dialog = rfd::FileDialog::new();
+                if let Some(path) = path {
+                    dialog = dialog.set_directory(path);
+                }
 
-            if let Some(dir) = dialog.pick_folder() {
-                *path = Some(dir.to_str().unwrap().to_owned());
-                changed = true;
+                if let Some(dir) = dialog.pick_folder() {
+                    let dir = dir.to_string_lossy();
+                    if !is_valid(&dir) {
+                        continue;
+                    }
+
+                    *path = Some(dir.to_string());
+                    changed = true;
+                }
+
+                break;
             }
         }
     });
@@ -263,7 +287,22 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.mod_id.is_none() {
-                draw_folder_picker("BepInEx folder", &mut self.bepinex_path, ui);
+                draw_folder_picker(
+                    "BepInEx folder",
+                    &mut self.config.bepinex_path,
+                    |path| {
+                        let path = std::path::Path::new(path);
+                        path.exists() && path.file_name() == Some("BepInEx".as_ref())
+                    },
+                    ui,
+                );
+
+                ui.separator();
+
+                ui.checkbox(
+                    &mut self.config.crewboom_no_cypher,
+                    "Save CrewBoom files to no_cypher folder",
+                );
             } else {
                 if self.main_rx.is_none() {
                     ui.label("Can't download mod because no game path is selected.");
