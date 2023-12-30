@@ -9,7 +9,7 @@ I don't like Concursus. Also, I need a small programming project to get used to 
 ## How to use
 
 - Get the executable from [the releases](https://github.com/NotNite/skindl/releases)
-- Launch the executable and select your config/CrewBoom folder
+- Launch the executable and select your BepInEx folder
 - Click "Concursus Mod Manager" when downloading a mod
 - Profit (hopefully)
 
@@ -24,7 +24,7 @@ I don't like Concursus. Also, I need a small programming project to get used to 
 - [x] Better error handling & idiot proofing
   - [x] Show errors instead of insta closing
   - [x] Move game path file to somewhere harder to accidentally delete
-- [ ] GUI with eframe
+- [x] GUI with eframe
 - [x] GitHub Actions/Releases
 - [ ] Support for other mod types
   - [x] CrewBoom

@@ -3,12 +3,12 @@ name = "skindl"
 description = "Bomb Rush Cyberfunk GameBanana downloader"
 authors = ["NotNite <hi@notnite.com>"]
 license = "MIT"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
 anyhow = "1.0.77"
-indicatif = "0.17.7"
+eframe = { version = "0.24.1", features = ["persistence"] }
 reqwest = { version = "0.11.23", features = ["blocking", "json"] }
 rfd = "0.12.1"
 serde = { version = "1.0.193", features = ["derive"] }
