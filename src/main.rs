@@ -1,16 +1,13 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{
-    collections::HashMap,
-    io::{Read, Write},
-    time::Duration,
-};
-
 use anyhow::Context;
 use eframe::{
     egui::{self, ProgressBar, ViewportBuilder, Widget},
     NativeOptions,
 };
+use std::{collections::HashMap, io::Read, time::Duration};
+
+mod archive;
 
 #[derive(Clone, Copy, Debug)]
 struct Progress {
@@ -26,9 +23,11 @@ enum DownloadEvent {
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone)]
+#[serde(default)]
 pub struct Config {
     pub bepinex_path: Option<String>,
     pub crewboom_no_cypher: bool,
+    pub include_character_overrides: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
@@ -127,8 +126,16 @@ fn download_mod(
 
     for (file_id, file) in resp.1.iter() {
         let ext = file.file.split('.').last();
-        let allowed_exts = ["zip", "cbb", "rar", "7z"];
-        if ext.is_none() || !allowed_exts.contains(&ext.unwrap()) {
+
+        let allowed_raw_exts = ["cbb"];
+        let allowed_archive_exts = ["zip", "rar", "7z"];
+        let allowed_exts = allowed_raw_exts
+            .iter()
+            .chain(allowed_archive_exts.iter())
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+
+        if ext.is_none() || !allowed_exts.contains(&ext.unwrap().to_string()) {
             continue;
         }
 
@@ -136,69 +143,50 @@ fn download_mod(
 
         let data =
             download_file(file.download_url.clone(), tx).context("failed to download file")?;
-        match ext.unwrap() {
-            "zip" => {
-                let mut archive = zip::ZipArchive::new(std::io::Cursor::new(data))?;
-                for i in 0..archive.len() {
-                    let mut file = archive.by_index(i)?;
-                    let filename = file.name().to_string();
-                    if filename.ends_with(".cbb") {
-                        let mut data = Vec::new();
-                        file.read_to_end(&mut data)?;
+        let files = if allowed_raw_exts.contains(&ext.unwrap()) {
+            let mut files = HashMap::new();
+            files.insert(file.file.clone(), data);
+            files
+        } else {
+            archive::extract_archive(
+                &data,
+                match ext.unwrap() {
+                    "zip" => archive::ArchiveType::Zip,
+                    "rar" => archive::ArchiveType::Rar,
+                    "7z" => archive::ArchiveType::SevenZ,
+                    _ => unreachable!(),
+                },
+            )?
+        };
 
-                        let path =
-                            std::path::Path::new(&crewboom_path).join(path_to_filename(&filename));
-                        std::fs::write(path, data)?;
-                    }
-                }
+        let crewboom_files: Vec<String> = files
+            .keys()
+            .filter(|&file| file.ends_with(".cbb"))
+            .map(|file| file.to_string())
+            .collect();
+        let default_character_override = r#"{"CharacterToReplace":"None"}"#.to_string();
+
+        for file in crewboom_files {
+            let character_override_path = file.replace(".cbb", ".json");
+            let character_override = if config.include_character_overrides {
+                Some(
+                    files
+                        .get(&character_override_path)
+                        .map(|data| String::from_utf8_lossy(data).to_string())
+                        .unwrap_or(default_character_override.clone()),
+                )
+            } else {
+                None
+            };
+
+            let file_path = crewboom_path.join(path_to_filename(&file));
+            std::fs::write(&file_path, files.get(&file).unwrap())?;
+
+            if let Some(character_override) = character_override {
+                let character_override_path =
+                    crewboom_path.join(path_to_filename(&character_override_path));
+                std::fs::write(&character_override_path, character_override)?;
             }
-
-            "cbb" => {
-                let path = std::path::Path::new(&crewboom_path).join(file.file.clone());
-                std::fs::write(path, data)?;
-            }
-
-            "rar" => {
-                // this api sucks lol
-                let mut temp_file = tempfile::NamedTempFile::new()?;
-                temp_file.write_all(&data)?;
-
-                let mut archive = unrar::Archive::new(temp_file.path()).open_for_processing()?;
-                while let Some(header) = archive.read_header()? {
-                    let filename = header
-                        .entry()
-                        .filename
-                        .file_name()
-                        .unwrap()
-                        .to_string_lossy();
-
-                    archive = if filename.ends_with(".cbb") {
-                        let path =
-                            std::path::Path::new(&crewboom_path).join(path_to_filename(&filename));
-                        header.extract_to(path)?
-                    } else {
-                        header.skip()?
-                    };
-                }
-                std::fs::remove_file(temp_file.path())?;
-            }
-
-            "7z" => {
-                let size = data.len();
-                let mut reader = std::io::Cursor::new(data.clone());
-                let archive = sevenz_rust::Archive::read(&mut reader, size as u64, &[])?;
-
-                for file in archive.files {
-                    let filename = file.name().to_string();
-                    if filename.ends_with(".cbb") {
-                        let path =
-                            std::path::Path::new(&crewboom_path).join(path_to_filename(&filename));
-                        sevenz_rust::default_entry_extract_fn(&file, &mut reader, &path)?;
-                    }
-                }
-            }
-
-            _ => unreachable!(),
         }
     }
 
@@ -302,6 +290,10 @@ impl eframe::App for App {
                 ui.checkbox(
                     &mut self.config.crewboom_no_cypher,
                     "Save CrewBoom files to no_cypher folder",
+                );
+                ui.checkbox(
+                    &mut self.config.include_character_overrides,
+                    "Include CrewBoom character overrides",
                 );
             } else {
                 if self.main_rx.is_none() {

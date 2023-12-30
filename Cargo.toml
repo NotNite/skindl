@@ -3,17 +3,18 @@ name = "skindl"
 description = "Bomb Rush Cyberfunk GameBanana downloader"
 authors = ["NotNite <hi@notnite.com>"]
 license = "MIT"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 
 [dependencies]
 anyhow = "1.0.77"
 eframe = { version = "0.24.1", features = ["persistence"] }
+nanoid = "0.4.0"
 reqwest = { version = "0.11.23", features = ["blocking", "json"] }
 rfd = "0.12.1"
 serde = { version = "1.0.193", features = ["derive"] }
+serde_json = "1.0.108"
 sevenz-rust = "0.5.4"
-tempfile = "3.9.0"
 unrar = "0.5.2"
 url = "2.5.0"
 winreg = "0.52.0"
