@@ -8,9 +8,9 @@ I don't like Concursus. Also, I need a small programming project to get used to 
 
 ## How to use
 
-- Get the executable (TODO: download links)
-- Launch the executable and select your CrewBoom folder
-- Click "Concursus Mod Manager" when downloading a file
+- Get the executable from [the releases](https://github.com/NotNite/skindl/releases)
+- Launch the executable and select your config/CrewBoom folder
+- Click "Concursus Mod Manager" when downloading a mod
 - Profit (hopefully)
 
 ## TODO
@@ -21,9 +21,12 @@ I don't like Concursus. Also, I need a small programming project to get used to 
   - [x] cbb
   - [x] 7z
   - [x] rar
-- [ ] Better error handling & idiot proofing
-  - [ ] Show errors instead of insta closing
-  - [ ] Ensure selected folder is valid on select
-  - [ ] Move game path file to somewhere harder to accidentally delete
+- [x] Better error handling & idiot proofing
+  - [x] Show errors instead of insta closing
+  - [x] Move game path file to somewhere harder to accidentally delete
 - [ ] GUI with eframe
-- [ ] GitHub Actions/Releases
+- [x] GitHub Actions/Releases
+- [ ] Support for other mod types
+  - [x] CrewBoom
+  - [ ] DripRemix
+  - [ ] BombRushRadio
