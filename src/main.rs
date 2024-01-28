@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use anyhow::Context;
+use device_query::DeviceQuery;
 use eframe::{
     egui::{self, ProgressBar, ViewportBuilder, Widget},
     NativeOptions,
@@ -22,12 +23,23 @@ enum DownloadEvent {
     Done,
 }
 
+enum MainToThread {
+    PromptSettings(PromptedSettings),
+}
+
+#[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone)]
+struct PromptedSettings {
+    pub crewboom_no_cypher: bool,
+    pub include_character_overrides: bool,
+}
+
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug, Clone)]
 #[serde(default)]
 pub struct Config {
     pub bepinex_path: Option<String>,
     pub crewboom_no_cypher: bool,
     pub include_character_overrides: bool,
+    pub prompt_settings: bool,
 }
 
 #[derive(serde::Deserialize, serde::Serialize, Default, Debug)]
@@ -43,9 +55,19 @@ pub struct App {
     #[serde(skip)]
     main_rx: Option<std::sync::mpsc::Receiver<DownloadEvent>>,
     #[serde(skip)]
+    main_tx: Option<std::sync::mpsc::Sender<MainToThread>>,
+
+    #[serde(skip)]
     progress: Option<Progress>,
     #[serde(skip)]
     error: Option<String>,
+
+    #[serde(skip)]
+    prompting_settings: bool,
+    #[serde(skip)]
+    prompted_settings: PromptedSettings,
+    #[serde(skip)]
+    sent_prompted_settings: bool,
 }
 
 #[derive(serde::Deserialize)]
@@ -201,14 +223,48 @@ impl App {
             Default::default()
         };
 
+        // Can't use egui keystate because no frame data yet :pensive:
+        let device_state = device_query::DeviceState::new();
+        let keys = device_state.get_keys();
+        let shift = keys.contains(&device_query::Keycode::LShift)
+            || keys.contains(&device_query::Keycode::RShift);
+        let prompting_settings = app.config.prompt_settings || shift;
+
+        app.prompting_settings = prompting_settings;
+        app.prompted_settings = PromptedSettings {
+            crewboom_no_cypher: app.config.crewboom_no_cypher,
+            include_character_overrides: app.config.include_character_overrides,
+        };
         app.mod_id = mod_id;
+
         if app.mod_id.is_some() && app.config.bepinex_path.is_some() {
             let (thread_tx, main_rx) = std::sync::mpsc::channel();
+            let (main_tx, thread_rx) = std::sync::mpsc::channel();
             app.main_rx = Some(main_rx);
+            app.main_tx = Some(main_tx);
+
             let mod_id = app.mod_id.clone().unwrap();
-            let config = app.config.clone();
+            let mut config = app.config.clone();
 
             std::thread::spawn(move || {
+                if prompting_settings {
+                    let prompted_settings = {
+                        loop {
+                            if let Ok(msg) = thread_rx.try_recv() {
+                                match msg {
+                                    MainToThread::PromptSettings(settings) => {
+                                        break settings;
+                                    }
+                                }
+                            }
+                        }
+                    };
+
+                    config.crewboom_no_cypher = prompted_settings.crewboom_no_cypher;
+                    config.include_character_overrides =
+                        prompted_settings.include_character_overrides;
+                }
+
                 let result = download_mod(&thread_tx, mod_id, config);
 
                 if let Err(err) = result {
@@ -295,6 +351,10 @@ impl eframe::App for App {
                     &mut self.config.include_character_overrides,
                     "Include CrewBoom character overrides",
                 );
+                ui.checkbox(
+                    &mut self.config.prompt_settings,
+                    "Prompt configuration on each download",
+                );
             } else {
                 if self.main_rx.is_none() {
                     ui.label("Can't download mod because no game path is selected.");
@@ -311,6 +371,28 @@ impl eframe::App for App {
                     ui.label(format!("Downloading {}...", mod_name));
                 } else {
                     ui.label("Downloading...");
+                }
+
+                if self.prompting_settings && !self.sent_prompted_settings {
+                    ui.checkbox(
+                        &mut self.prompted_settings.crewboom_no_cypher,
+                        "Save CrewBoom files to no_cypher folder",
+                    );
+                    ui.checkbox(
+                        &mut self.prompted_settings.include_character_overrides,
+                        "Include CrewBoom character overrides",
+                    );
+
+                    if ui.button("Download").clicked() {
+                        self.main_tx
+                            .as_ref()
+                            .unwrap()
+                            .send(MainToThread::PromptSettings(self.prompted_settings.clone()))
+                            .unwrap();
+                        self.sent_prompted_settings = true;
+                    }
+
+                    return;
                 }
 
                 if let Some(progress) = &self.progress {
@@ -384,8 +466,8 @@ fn main() -> eframe::Result<()> {
         "skindl",
         NativeOptions {
             viewport: ViewportBuilder::default()
-                .with_inner_size([400.0, 100.0])
-                .with_min_inner_size([400.0, 100.0]),
+                .with_inner_size([400.0, 125.0])
+                .with_min_inner_size([400.0, 125.0]),
             ..Default::default()
         },
         Box::new(|cc| Box::new(App::new(cc, arg))),
