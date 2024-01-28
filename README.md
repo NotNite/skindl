@@ -1,10 +1,16 @@
 # skindl
 
-Bomb Rush Cyberfunk GameBanana downloader. Hijacks the Concursus URI scheme.
+<div align="center">
+  <h3>One and done in <i>how</i> fast?</h3>
+  <img src="https://raw.githubusercontent.com/NotNite/skindl/main/res/skindl.gif" />
+</div>
 
-## Why?
+A Bomb Rush Cyberfunk GameBanana downloader. True one-click downloads for CrewBoom skins that's incredibly speedy[^1].
 
-I don't like Concursus. Also, I need a small programming project to get used to a split keyboard.
+[^1]: When GameBanana isn't dying.
+
+> [!NOTE]
+> This functions by hijacking the Concursus URI scheme. You cannot use Concursus and skindl at the same time. skindl may break at any moment when Concursus is updated.
 
 ## How to use
 
@@ -12,21 +18,3 @@ I don't like Concursus. Also, I need a small programming project to get used to 
 - Launch the executable and select your BepInEx folder
 - Click "Concursus Mod Manager" when downloading a mod
 - Profit (hopefully)
-
-## TODO
-
-- [x] Registering the URI handler
-- [x] Downloading mods
-  - [x] zip
-  - [x] cbb
-  - [x] 7z
-  - [x] rar
-- [x] Better error handling & idiot proofing
-  - [x] Show errors instead of insta closing
-  - [x] Move game path file to somewhere harder to accidentally delete
-- [x] GUI with eframe
-- [x] GitHub Actions/Releases
-- [ ] Support for other mod types
-  - [x] CrewBoom
-  - [ ] DripRemix
-  - [ ] BombRushRadio
