@@ -5,6 +5,8 @@
   <img src="https://raw.githubusercontent.com/NotNite/skindl/main/res/skindl.gif" />
 </div>
 
+---
+
 A Bomb Rush Cyberfunk GameBanana downloader. True one-click downloads for CrewBoom skins that's incredibly speedy[^1].
 
 [^1]: When GameBanana isn't dying.
